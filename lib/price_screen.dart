@@ -83,6 +83,7 @@ class _PriceScreenState extends State<PriceScreen> {
             } else if (itemsMap == cryptoMap) {
               selectedCryptoTicker = value!;
             }
+            exchangeRate = 0;
           }),
         ),
       ),
