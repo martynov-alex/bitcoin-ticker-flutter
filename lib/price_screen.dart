@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
-import 'dart:io' show Platform;
 import 'package:bitcoin_ticker/coin_data.dart';
+import 'package:syncfusion_flutter_charts/charts.dart';
 
 class PriceScreen extends StatefulWidget {
   @override
@@ -9,43 +8,38 @@ class PriceScreen extends StatefulWidget {
 }
 
 class _PriceScreenState extends State<PriceScreen> {
-  // Создаем объект класса CoinData, он содержит метод, который запрашивает
-  // данные по курсу для выбранной пары
   CoinData coinData = CoinData();
 
-  // Стартовый выбор тикеров
   String selectedCurrencyTicker = 'USD';
   String selectedCryptoTicker = 'BTC';
-
-  // Курс обмена
   double exchangeRate = 0.0;
+  dynamic exchangeRatesChartData = [ExchangeRatesData(DateTime.now(), 0.0)];
 
   @override
   void initState() {
-    super.initState();
     // Получаем данные при загрузке приложения
     Future.delayed(Duration.zero, () async {
-      exchangeRate = await coinData.getExchangeRate(
+      exchangeRatesChartData = await coinData.getExchangeRates(
           currency: selectedCurrencyTicker, crypto: selectedCryptoTicker);
-
+      exchangeRate = exchangeRatesChartData[0].exchangeRate;
       // Как только данные получены, передаем их в функцию обновления UI
       updateUI(exchangeRate);
     });
+    super.initState();
   }
 
   // Функция обновления параметров UI
-  void updateUI(
-    double exchangeRateUpdate,
-  ) {
+  void updateUI(double exchangeRateUpdate) {
     setState(() {
       exchangeRate = exchangeRateUpdate;
     });
   }
 
-  Container androidDropdown(Map<String, String> itemsMap, String pickerType) {
+  Container androidDropdown(Map<String, String> itemsMap) {
     List<DropdownMenuItem<String>> androidDropdownItems = [];
     String selectedTicker = '';
 
+    // Создаем список объетов DropdownMenuItem для выпадающего меню
     for (var currency in itemsMap.entries) {
       var newItem = DropdownMenuItem(
           child: Text('${currency.value} [${currency.key}]'),
@@ -53,18 +47,19 @@ class _PriceScreenState extends State<PriceScreen> {
       androidDropdownItems.add(newItem);
     }
 
-    switch (pickerType) {
-      case 'currency':
+    // Определение типа переменной выпадающего меню по типу словаря
+    switch (itemsMap) {
+      case currenciesMap:
         selectedTicker = selectedCurrencyTicker;
         break;
-      case 'crypto':
+      case cryptoMap:
         selectedTicker = selectedCryptoTicker;
         break;
     }
 
     return Container(
-      margin: EdgeInsets.only(top: 15, left: 15, right: 15),
-      padding: EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+      margin: const EdgeInsets.only(top: 15, left: 20, right: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
       decoration: BoxDecoration(
         border: Border.all(color: Colors.white, width: 2),
         borderRadius: BorderRadius.circular(12),
@@ -79,11 +74,13 @@ class _PriceScreenState extends State<PriceScreen> {
           ),
           isExpanded: true,
           style: const TextStyle(color: Colors.white, fontSize: 20),
+          dropdownColor: const Color(0xFF0331F4),
+          borderRadius: BorderRadius.circular(12),
           items: androidDropdownItems,
           onChanged: (value) => setState(() {
-            if (pickerType == 'currency') {
+            if (itemsMap == currenciesMap) {
               selectedCurrencyTicker = value!;
-            } else if (pickerType == 'crypto') {
+            } else if (itemsMap == cryptoMap) {
               selectedCryptoTicker = value!;
             }
           }),
@@ -105,7 +102,7 @@ class _PriceScreenState extends State<PriceScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           Padding(
-            padding: EdgeInsets.fromLTRB(18.0, 18.0, 18.0, 0),
+            padding: const EdgeInsets.fromLTRB(18.0, 18.0, 18.0, 0),
             child: Card(
               color: const Color(0xFF03F4C6),
               elevation: 5.0,
@@ -113,17 +110,32 @@ class _PriceScreenState extends State<PriceScreen> {
                 borderRadius: BorderRadius.circular(10.0),
               ),
               child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 15.0, horizontal: 28.0),
+                padding: const EdgeInsets.symmetric(
+                    vertical: 15.0, horizontal: 28.0),
                 child: Text(
-                  '1 $selectedCryptoTicker = ${exchangeRate.toStringAsFixed(6)} $selectedCurrencyTicker',
+                  '1 $selectedCryptoTicker = ${exchangeRate.round()} $selectedCurrencyTicker',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 20.0,
-                    color: Colors.black,
-                  ),
+                  style: const TextStyle(fontSize: 20.0, color: Colors.black),
                 ),
               ),
             ),
+          ),
+          SfCartesianChart(
+            title: ChartTitle(
+              text: 'Chart for the last 6 months',
+              textStyle: const TextStyle(fontSize: 16.0, color: Colors.black),
+            ),
+            // Initialize category axis
+            primaryXAxis: DateTimeAxis(),
+            series: <LineSeries<ExchangeRatesData, DateTime>>[
+              LineSeries<ExchangeRatesData, DateTime>(
+                  // Bind data source
+                  dataSource: exchangeRatesChartData,
+                  xValueMapper: (ExchangeRatesData exchangeRate, _) =>
+                      exchangeRate.day,
+                  yValueMapper: (ExchangeRatesData exchangeRate, _) =>
+                      exchangeRate.exchangeRate),
+            ],
           ),
           Container(
             alignment: Alignment.center,
@@ -132,14 +144,15 @@ class _PriceScreenState extends State<PriceScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                androidDropdown(currenciesMap, 'currency'),
-                androidDropdown(cryptoMap, 'crypto'),
+                androidDropdown(currenciesMap),
+                androidDropdown(cryptoMap),
                 const SizedBox(height: 15),
                 ElevatedButton(
                   onPressed: () async {
-                    exchangeRate = await coinData.getExchangeRate(
+                    exchangeRatesChartData = await coinData.getExchangeRates(
                         currency: selectedCurrencyTicker,
                         crypto: selectedCryptoTicker);
+                    exchangeRate = exchangeRatesChartData[0].exchangeRate;
                     updateUI(exchangeRate);
                   },
                   style: ElevatedButton.styleFrom(
